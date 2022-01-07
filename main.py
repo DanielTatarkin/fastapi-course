@@ -6,6 +6,7 @@ from random import randrange
 
 app = FastAPI()
 
+"""Latest https://youtu.be/0sOvCWFmrtA?t=7288"""
 
 class Post(BaseModel):
     title: str
