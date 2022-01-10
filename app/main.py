@@ -14,7 +14,7 @@ load_dotenv('database.env')
 
 app = FastAPI()
 
-"""Latest https://youtu.be/0sOvCWFmrtA?t=12715"""
+"""Latest https://youtu.be/0sOvCWFmrtA?t=15095"""
 
 
 class Post(BaseModel):
