@@ -3,6 +3,14 @@ from fastapi import FastAPI, Response, status, HTTPException
 from fastapi.params import Body
 from pydantic import BaseModel
 from random import randrange
+from dotenv import load_dotenv
+
+import os
+from time import sleep
+import psycopg2
+from psycopg2.extras import RealDictCursor
+
+load_dotenv('database.env')
 
 app = FastAPI()
 
@@ -13,7 +21,24 @@ class Post(BaseModel):
     title: str
     content: str
     published: bool = True
-    rating: Optional[int] = None
+
+while True:
+    try:
+        conn = psycopg2.connect(
+            host='localhost',
+            database='fastapi',
+            user=os.getenv('POSTGRES_USER'),
+            password=os.getenv('POSTGRES_PASSWORD'),
+            cursor_factory=RealDictCursor)
+        cursor = conn.cursor()
+        print("DB connection was successful")
+        break
+    except Exception as error:
+        timeout = 2
+        print("Connection to DB failed:")
+        print(f"Error: {error}")
+        print(f"Retrying in {timeout} seconds...")
+        sleep(timeout)
 
 
 MY_POSTS = [{"title": "Title of post 1", "content": "content of post 1", "id": 1}, {
@@ -25,8 +50,9 @@ def find_post(id):
         if post['id'] == id:
             return post
 
+
 def modify_post(id, updated_post):
-    for i,post in enumerate(MY_POSTS):
+    for i, post in enumerate(MY_POSTS):
         if post['id'] == id:
             MY_POSTS[i] = updated_post
             MY_POSTS[i]['id'] = id
@@ -34,7 +60,7 @@ def modify_post(id, updated_post):
 
 
 def find_index_post(id):
-    for i,post in enumerate(MY_POSTS):
+    for i, post in enumerate(MY_POSTS):
         if post['id'] == id:
             return i
     return None
@@ -55,8 +81,10 @@ def root():
 
 @app.get("/posts")
 def get_posts():
+    cursor.execute("SELECT * FROM posts")
+    posts = cursor.fetchall()
     return {
-        "data": MY_POSTS
+        "data": posts
     }
 
 
@@ -95,7 +123,7 @@ def delete_post(id: int):
                             detail=f"Could not find post with id: {id}")
 
 
-@app.put("/posts/{id}" )
+@app.put("/posts/{id}")
 def update_post(id: int, post: Post):
     index = find_index_post(id)
 
