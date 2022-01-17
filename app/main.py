@@ -14,13 +14,14 @@ load_dotenv('database.env')
 
 app = FastAPI()
 
-"""Latest https://youtu.be/0sOvCWFmrtA?t=15095"""
+"""Latest https://youtu.be/0sOvCWFmrtA?t=16279"""
 
 
 class Post(BaseModel):
     title: str
     content: str
     published: bool = True
+
 
 while True:
     try:
@@ -81,7 +82,7 @@ def root():
 
 @app.get("/posts")
 def get_posts():
-    cursor.execute("SELECT * FROM posts")
+    cursor.execute("""SELECT * FROM posts""")
     posts = cursor.fetchall()
     return {
         "data": posts
@@ -90,34 +91,44 @@ def get_posts():
 
 @app.post("/posts", status_code=status.HTTP_201_CREATED)
 def create_posts(post: Post):
-    post_dict = post.dict()
-    post_dict['id'] = randrange(0, 1000)
-    MY_POSTS.append(post_dict)
-    return {"post": post_dict}
-
-
-@app.get("/posts/{id}")
-def get_post(id: int):
-    post = find_post(id)
-    if post:
-        return post
-    else:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
-                            detail=f"Could not find post with id: {id}")
+    # Using formatted string here would pose risk of SQL injection
+    # - the following parameterized query is best practice
+    cursor.execute("""
+                    INSERT INTO posts (title, content, published)
+                    VALUES (%s, %s, %s) RETURNING *""",
+                   (post.title, post.content, post.published)
+                   )
+    new_post = cursor.fetchone()
+    conn.commit()
+    return {"post": new_post}
 
 
 @app.get("/posts/latest")
 def get_latest_post():
-    post = MY_POSTS[-1]
-    return {
-        "data": post
-    }
+    cursor.execute("""SELECT * FROM posts ORDER BY created_at DESC LIMIT 1""")
+    post = cursor.fetchone()
+
+    return {"post_detail": post}
+
+
+@app.get("/posts/{id}")
+def get_post(id: int):
+    cursor.execute("""SELECT * FROM posts WHERE id=%s""", (id,))
+    post = cursor.fetchone()
+    if not post:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
+                            detail=f"Could not find post with id: {id}")
+
+    return {"post_detail": post}
 
 
 @app.delete("/posts/{id}")
 def delete_post(id: int):
-    if remove_post(id):
-        Response(status_code=status.HTTP_204_NO_CONTENT)
+    cursor.execute("""DELETE FROM posts WHERE id=%s RETURNING *""", (id,))
+    deleted_post = cursor.fetchone()
+    conn.commit()
+    if deleted_post:
+        return Response(status_code=status.HTTP_204_NO_CONTENT)
     else:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail=f"Could not find post with id: {id}")
@@ -125,13 +136,11 @@ def delete_post(id: int):
 
 @app.put("/posts/{id}")
 def update_post(id: int, post: Post):
-    index = find_index_post(id)
-
-    if index == None:
+    cursor.execute("""UPDATE posts SET title=%s, content=%s, published=%s WHERE id=%s RETURNING *""",
+    (post.title, post.content, post.published, id))
+    updated_post = cursor.fetchone()
+    conn.commit()
+    if not updated_post:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail=f"Could not find post with id: {id}")
-
-    post_dict = post.dict()
-    post_dict['id'] = id
-    MY_POSTS[index] = post_dict
-    return {"data": post_dict}
+    return {"post_detail": updated_post}
