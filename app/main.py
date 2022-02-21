@@ -1,11 +1,8 @@
-from multiprocessing.sharedctypes import synchronized
 import os
 import psycopg2
 
-from typing import Optional
+from typing import List
 from fastapi import Depends, FastAPI, Response, status, HTTPException
-from fastapi.params import Body
-from random import randrange
 from dotenv import load_dotenv
 from time import sleep
 from psycopg2.extras import RealDictCursor
@@ -18,7 +15,7 @@ from .database import engine, get_db
 load_dotenv("database.env")
 
 
-"""Latest https://youtu.be/0sOvCWFmrtA?t=18475"""
+"""Latest hhttps://youtu.be/0sOvCWFmrtA?t=21008"""
 
 models.Base.metadata.create_all(bind=engine)
 app = FastAPI()
@@ -49,7 +46,7 @@ def root():
     return {"message": "Welcome to my API"}
 
 
-@app.get("/posts")
+@app.get("/posts", response_model=List[schemas.Post])
 def get_posts(db: Session = Depends(get_db)):
     # cursor.execute("""SELECT * FROM posts""")
     # posts = cursor.fetchall()
@@ -57,7 +54,7 @@ def get_posts(db: Session = Depends(get_db)):
     return posts
 
 
-@app.post("/posts", status_code=status.HTTP_201_CREATED)
+@app.post("/posts", status_code=status.HTTP_201_CREATED, response_model=schemas.Post)
 def create_posts(post: schemas.PostCreate, db: Session = Depends(get_db)):
     # Using formatted string here would pose risk of SQL injection
     # - the following parameterized query is best practice
@@ -84,7 +81,7 @@ def get_latest_post():
     return post
 
 
-@app.get("/posts/{id}")
+@app.get("/posts/{id}", response_model=schemas.Post)
 def get_post(id: int, db: Session = Depends(get_db)):
     # cursor.execute("""SELECT * FROM posts WHERE id=%s""", (id,))
     # post = cursor.fetchone()
@@ -117,7 +114,7 @@ def delete_post(id: int, db: Session = Depends(get_db)):
         )
 
 
-@app.put("/posts/{id}")
+@app.put("/posts/{id}", response_model=schemas.Post)
 def update_post(id: int, post: schemas.PostCreate, db: Session = Depends(get_db)):
     # cursor.execute(
     #     """UPDATE posts SET title=%s, content=%s, published=%s WHERE id=%s RETURNING *""",
