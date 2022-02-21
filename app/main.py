@@ -1,10 +1,10 @@
+from multiprocessing.sharedctypes import synchronized
 import os
 import psycopg2
 
 from typing import Optional
 from fastapi import Depends, FastAPI, Response, status, HTTPException
 from fastapi.params import Body
-from pydantic import BaseModel
 from random import randrange
 from dotenv import load_dotenv
 from time import sleep
@@ -12,6 +12,7 @@ from psycopg2.extras import RealDictCursor
 from sqlalchemy.orm import Session
 
 from . import models
+from . import schemas
 from .database import engine, get_db
 
 load_dotenv("database.env")
@@ -21,12 +22,6 @@ load_dotenv("database.env")
 
 models.Base.metadata.create_all(bind=engine)
 app = FastAPI()
-
-
-class Post(BaseModel):
-    title: str
-    content: str
-    published: bool = True
 
 
 while True:
@@ -104,7 +99,7 @@ def get_posts(db: Session = Depends(get_db)):
 
 
 @app.post("/posts", status_code=status.HTTP_201_CREATED)
-def create_posts(post: Post, db: Session = Depends(get_db)):
+def create_posts(post: schemas.PostCreate, db: Session = Depends(get_db)):
     # Using formatted string here would pose risk of SQL injection
     # - the following parameterized query is best practice
     # cursor.execute("""
@@ -131,9 +126,11 @@ def get_latest_post():
 
 
 @app.get("/posts/{id}")
-def get_post(id: int):
-    cursor.execute("""SELECT * FROM posts WHERE id=%s""", (id,))
-    post = cursor.fetchone()
+def get_post(id: int, db: Session = Depends(get_db)):
+    # cursor.execute("""SELECT * FROM posts WHERE id=%s""", (id,))
+    # post = cursor.fetchone()
+    post = db.query(models.Post).filter(models.Post.id == id).first()
+
     if not post:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -144,11 +141,15 @@ def get_post(id: int):
 
 
 @app.delete("/posts/{id}")
-def delete_post(id: int):
-    cursor.execute("""DELETE FROM posts WHERE id=%s RETURNING *""", (id,))
-    deleted_post = cursor.fetchone()
-    conn.commit()
-    if deleted_post:
+def delete_post(id: int, db: Session = Depends(get_db)):
+    # cursor.execute("""DELETE FROM posts WHERE id=%s RETURNING *""", (id,))
+    # deleted_post = cursor.fetchone()
+    # conn.commit()
+    post_q = db.query(models.Post).filter(models.Post.id == id)
+
+    if post_q.first():
+        post_q.delete(synchronize_session=False)
+        db.commit()
         return Response(status_code=status.HTTP_204_NO_CONTENT)
     else:
         raise HTTPException(
@@ -158,16 +159,21 @@ def delete_post(id: int):
 
 
 @app.put("/posts/{id}")
-def update_post(id: int, post: Post):
-    cursor.execute(
-        """UPDATE posts SET title=%s, content=%s, published=%s WHERE id=%s RETURNING *""",
-        (post.title, post.content, post.published, id),
-    )
-    updated_post = cursor.fetchone()
-    conn.commit()
-    if not updated_post:
+def update_post(id: int, post: schemas.PostCreate, db: Session = Depends(get_db)):
+    # cursor.execute(
+    #     """UPDATE posts SET title=%s, content=%s, published=%s WHERE id=%s RETURNING *""",
+    #     (post.title, post.content, post.published, id),
+    # )
+    # updated_post = cursor.fetchone()
+    # conn.commit()
+    post_q = db.query(models.Post).filter(models.Post.id == id)
+    original_post = post_q.first()
+
+    if not original_post:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Could not find post with id: {id}",
         )
-    return {"post_detail": updated_post}
+    post_q.update(post.dict(), synchronize_session=False)
+    db.commit()
+    return {"post_detail": post_q.first()}
