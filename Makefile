@@ -9,4 +9,4 @@ setup:
 		pip install -r requirements.txt
 
 db:
-		docker-compose up -d
+		docker compose up -d
