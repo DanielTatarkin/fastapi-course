@@ -44,50 +44,9 @@ while True:
         sleep(timeout)
 
 
-MY_POSTS = [
-    {"title": "Title of post 1", "content": "content of post 1", "id": 1},
-    {"title": "Title of post 2", "content": "content of post 2", "id": 2},
-]
-
-
-def find_post(id):
-    for post in MY_POSTS:
-        if post["id"] == id:
-            return post
-
-
-def modify_post(id, updated_post):
-    for i, post in enumerate(MY_POSTS):
-        if post["id"] == id:
-            MY_POSTS[i] = updated_post
-            MY_POSTS[i]["id"] = id
-            print(MY_POSTS)
-
-
-def find_index_post(id):
-    for i, post in enumerate(MY_POSTS):
-        if post["id"] == id:
-            return i
-    return None
-
-
-def remove_post(id):
-    for i, post in enumerate(MY_POSTS):
-        if post["id"] == id:
-            MY_POSTS.pop(i)
-            return True
-    return False
-
-
 @app.get("/")
 def root():
     return {"message": "Welcome to my API"}
-
-
-@app.get("/sqlalchemy")
-def test_posts(db: Session = Depends(get_db)):
-    posts = db.query(models.Post).all()
-    return {"data": posts}
 
 
 @app.get("/posts")
@@ -95,7 +54,7 @@ def get_posts(db: Session = Depends(get_db)):
     # cursor.execute("""SELECT * FROM posts""")
     # posts = cursor.fetchall()
     posts = db.query(models.Post).all()
-    return {"data": posts}
+    return posts
 
 
 @app.post("/posts", status_code=status.HTTP_201_CREATED)
@@ -114,7 +73,7 @@ def create_posts(post: schemas.PostCreate, db: Session = Depends(get_db)):
     db.commit()
     db.refresh(new_post)  # retrieve what we created back into new_post variable
 
-    return {"post": new_post}
+    return new_post
 
 
 @app.get("/posts/latest")
@@ -122,7 +81,7 @@ def get_latest_post():
     cursor.execute("""SELECT * FROM posts ORDER BY created_at DESC LIMIT 1""")
     post = cursor.fetchone()
 
-    return {"post_detail": post}
+    return post
 
 
 @app.get("/posts/{id}")
@@ -137,7 +96,7 @@ def get_post(id: int, db: Session = Depends(get_db)):
             detail=f"Could not find post with id: {id}",
         )
 
-    return {"post_detail": post}
+    return post
 
 
 @app.delete("/posts/{id}")
@@ -176,4 +135,4 @@ def update_post(id: int, post: schemas.PostCreate, db: Session = Depends(get_db)
         )
     post_q.update(post.dict(), synchronize_session=False)
     db.commit()
-    return {"post_detail": post_q.first()}
+    return post_q.first()
